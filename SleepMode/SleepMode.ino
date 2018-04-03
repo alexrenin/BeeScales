@@ -1,8 +1,10 @@
 #include <DS3231.h>
 #include <Wire.h>
+#include <avr/sleep.h> 
+#include <avr/power.h>
 
-#define AnalogRead 2000 //период чтения напряжения, ms
-#define DrawTime 1000 //период обновления экрана, ms
+#define AnalogRead 5000 //период чтения напряжения, ms
+#define DrawTime 5000 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
 #define WakePin 2
@@ -19,7 +21,8 @@ byte year, month, date, doW, hour, minute, second;
 bool Century=false;
 bool h12;
 bool PM, g;
-
+volatile bool alarmFlag = 0; //переменная прерываний
+volatile bool sleepFlag = 0; //флаг ухода в сон
 
 SIGNAL(TIMER0_COMPA_vect) { //прерывание считывающие мощность
   tyme = tyme + 1;
@@ -52,58 +55,10 @@ void getTime() {
   second=Clock.getSecond();
 }
 
-void DrawMenu () {
-//  getTime();
-//  Serial.print("20");
-//  Serial.print(year);
-//  Serial.print(".");
-//  Serial.print(month);
-//  Serial.print(".");
-//  Serial.print(date);
-//  Serial.print(" ");
-//  Serial.print(hour);
-//  Serial.print(":");
-//  Serial.print(minute);
-//  Serial.print(":");
-//  Serial.println(second);
-//
-//  // Display Alarm 1 information
-//  byte ADay, AHour, AMinute, ASecond, ABits;
-//  bool ADy, A12h, Apm;
-//  
-//  Serial.print("Alarm 1: ");
-//  Clock.getA1Time(ADay, AHour, AMinute, ASecond, ABits, ADy, A12h, Apm);
-//  Serial.print(ADay, DEC);
-//  if (ADy) {
-//    Serial.print(" DoW");
-//  } else {
-//    Serial.print(" Date");
-//  }
-//  Serial.print(' ');
-//  Serial.print(AHour, DEC);
-//  Serial.print(' ');
-//  Serial.print(AMinute, DEC);
-//  Serial.print(' ');
-//  Serial.print(ASecond, DEC);
-//  Serial.print(' ');
-//  if (A12h) {
-//    if (Apm) {
-//      Serial.print('pm ');
-//    } else {
-//      Serial.print('am ');
-//    }
-//  }
-//  if (Clock.checkAlarmEnabled(1)) {
-//    Serial.print("enabled");
-//  }
-//  Serial.print('\n');
-//  if (Clock.checkIfAlarm(1) ) 
-//  {
-//    Serial.println("Alarm 1 Triggered");
-//  }
-}
-
 void setSleepTimer(int mins){
+  Serial.print("Alarm set after: ");
+  Serial.println(mins);
+  
   getTime();
   byte A1Day = date;
   byte A1Hour = hour;
@@ -121,31 +76,68 @@ void setSleepTimer(int mins){
 
   Clock.setA1Time(A1Day, A1Hour, A1Minute, A1Second, AlarmBits, A1Dy, h12, PM);
   Clock.turnOnAlarm(1);
+  if (Clock.checkIfAlarm(1) ) 
+  {
+    Serial.println("Alarm 1 Triggered");
+  }
+  sleepFlag = true;
+}
+
+void weakUP() {
+    alarmFlag = 1;
+    
+    bool g2 = digitalRead(WakePin);
+    Serial.println("");
+    Serial.print("Pin2: ");
+    Serial.println(g2); 
+    Serial.println("");
+
+//    setSleepTimer(1);
+}
+
+void sleepNow() {
+  ADCSRA = 0;
+  power_all_disable();
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  attachInterrupt(0, weakUP, LOW);
+  sleep_enable();  
+  sleep_mode();  
+  sleep_disable();
+  power_all_enable();
+  detachInterrupt(0);
 }
 
 void KeyPad () {
-  bool g2 = digitalRead(WakePin);
-  if (g != g2) {
-    g = g2;
-    Serial.print("Pin2: ");
-    Serial.println(g2); 
-  }
+  
 }
 
 void ReadAnalog () {
    
 }
 
-void weakUP() {
-    bool g2 = digitalRead(WakePin);
-    Serial.print("");
-    Serial.print("Pin2: ");
-    Serial.println(g2); 
-    Serial.print(" ");
+void DrawMenu () {
+  getTime();
+  Serial.print("20");
+  Serial.print(year);
+  Serial.print(".");
+  Serial.print(month);
+  Serial.print(".");
+  Serial.print(date);
+  Serial.print(" ");
+  Serial.print(hour);
+  Serial.print(":");
+  Serial.print(minute);
+  Serial.print(":");
+  Serial.println(second);
+
+  if (alarmFlag) {
+    alarmFlag = 0;
+    setSleepTimer(1);
+  }
 }
 
 void setup() {
-  attachInterrupt(0, weakUP, CHANGE); //внешнее прерывание от RTC
+//  attachInterrupt(0, weakUP, CHANGE); //внешнее прерывание от RTC
   
   OCR0A = 0xAF; //прерывание
   TIMSK0 |= _BV(OCIE0A); //прерывание
@@ -155,7 +147,6 @@ void setup() {
 
   pinMode(WakePin, INPUT);
   digitalWrite(WakePin, HIGH);
-//  Clock.turnOnAlarm(1);
 
   setSleepTimer(1);
 }
@@ -164,6 +155,12 @@ void loop() {
   if (rt == 1) { rt = 0; ReadAnalog(); };  
   if (dt == 1) { dt = 0; DrawMenu(); };
   if (kr == 1) { kr = 0; KeyPad(); };
+
+  if (sleepFlag) {
+    sleepFlag = false;
+    delay(200);
+    sleepNow();
+  }
 }
 
 
