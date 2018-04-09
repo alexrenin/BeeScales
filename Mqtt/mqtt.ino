@@ -64,7 +64,7 @@ int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeou
     return answer;
 }
 
-void GPRSDisconnect() {
+void GPRSdiscon() {
     //закрыть все  TCP/IP соединения
     sendATcommand("AT+CIPSHUT", "OK", 2000);
     // Deactivate the bearer context
@@ -72,63 +72,61 @@ void GPRSDisconnect() {
 }
 
 void GPRSinit() {
-  //закрыть все соединения
-  sendATcommand("AT+CIPSHUT", "OK", 2000);
-  delay(500);
-  
-  sendATcommand("AT+SAPBR=0,1", "OK", 2000); //включаем режим GPRS
-  //включаем режим GPRS
-  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", "OK", 2000); //включаем режим GPRS
-  //настриваем точку доступа APN
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"APN\",\"%s\"", APN);
-  sendATcommand(aux_str, "OK", 2000);
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"USER\",\"%s\"", USER);
-  sendATcommand(aux_str, "OK", 2000);
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"PWD\",\"%s\"", USER);
-  sendATcommand(aux_str, "OK", 2000);
+    GPRSdiscon();
 
-   //устанавка GPRS связи
-  while (sendATcommand("AT+SAPBR=1,1", "OK", 2000) == 0) {
-    delay(2000);
-  }
+    // Set the connection type to GPRS
+    sendATcommand("+SAPBR=3,1,\"Contype\",\"GPRS\"", "OK", 2000);
+    
+    //настриваем точку доступа APN
+    snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"APN\",\"%s\"", APN);
+    sendATcommand(aux_str, "OK", 2000);
+    
+    // Define the PDP context
+    snprintf(aux_str, sizeof(aux_str), "AT+CGDCONT=1,\"IP\",\"%s\"", APN);
+    //aux_str = "AT+CGDCONT=1,\"IP\",\"" + APN + '"';
+    sendATcommand(aux_str, "OK", 2000);
 
-  Serial.println("GPRS OK");
-  
-  
-  
-  //активируем одиночное TCP/IP соединение
-  sendATcommand("AT+CIPMUX=1", "OK", 2000);
-  delay(500);
-  //Уровень сигнала
-  sendATcommand("AT+CSQ", "OK", 2000);
-  delay(500);
-  //Регистрация?
-  sendATcommand("AT+CREG?", "OK", 2000);
-  delay(500);
-  //Проверка статуса GPRS?
-  sendATcommand("AT+CGATT?", "+CGATT:1", 2000);
-  delay(500);
-  //настриваем точку доступа APN
-//  snprintf(aux_str, sizeof(aux_str), "AT+CSTT=\"%s\"", APN, ",", USER, ",", USER);
-  //sendATcommand(aux_str, "OK", 2000);
-  sendATcommand("AT+CSTT=\"internet.mts.ru\",\"mts\",\"mts\"", "OK", 2000);
-  //устанавка GPRS соединения
-  delay(500);
-  sendATcommand("AT+CIICR", "OK", 80000);
-  delay(500);
-  //IP запрашиваем
-   sendATcommand("AT+CIFCR", "OK", 2000);
-  delay(500);
-  sendATcommand("AT+CIFCR", "OK", 2000);
-  delay(500);
-  sendATcommand("AT+CIFCR", "OK", 2000);
-  delay(500);
+    // Activate the PDP context
+    sendATcommand("AT+CGACT=1,1", "OK", 2000);
+    
+    // Open the definied GPRS bearer context
+    sendATcommand("AT+SAPBR=1,1", "OK", 2000);
+    
+    // Query the GPRS bearer context status
+    sendATcommand("AT+SAPBR=2,1", "OK", 2000);
+    
+    // Attach to GPRS
+    sendATcommand("AT+CGATT=1", "OK", 2000);
 
-  //Установка TCP соединения
-  sendATcommand("AT+CIPSTART=0,\"TCP\",\"m23.cloudmqtt.com\",\"12843\"", "OK", 2000);
-  sendATcommand("AT+CIPSTATUS=0", "OK", 2000);
-  delay(500);
-  
+    // Set to multi-IP
+    sendATcommand("AT+CIPMUX=1", "OK", 2000);
+    
+    // Put in "quick send" mode (thus no extra "Send OK")
+    sendATcommand("AT+CIPQSEND=1", "OK", 2000);
+    
+    // Set to get data manually
+    sendATcommand("AT+CIPRXGET=1", "OK", 2000);
+    
+    // Start Task and Set APN, USER NAME, PASSWORD
+    sendATcommand("AT+CSTT=\"internet.mts.ru\",\"mts\",\"mts\"", "OK", 2000);
+    
+    // Bring Up Wireless Connection with GPRS or CSD
+    sendATcommand("AT+CIICR", "OK", 80000);
+    
+    
+    //IP запрашиваем
+    sendATcommand("AT+CIFSR;E0", "OK", 2000);
+    
+    
+    // Configure Domain Name Server (DNS)
+    //sendATcommand("AT+CDNSCFG=\"8.8.8.8\",\"8.8.4.4\"", "OK", 2000);
+    
+    
+
+    //Установка TCP соединения
+    sendATcommand("AT+CIPSTART=0,\"TCP\",\"m23.cloudmqtt.com\",\"12843\"", "OK", 2000);
+    sendATcommand("AT+CIPSTATUS=0", "OK", 2000);
+    delay(500);
   
 }
 
