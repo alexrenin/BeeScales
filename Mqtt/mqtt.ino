@@ -22,6 +22,7 @@ uint8_t answer=0;
 
 char url[150];
 String surl="http://narodmon.ru/post.php/?";
+
 //---------------- ФУНКЦИИ ----------------
 
 // отправка AT-команд
@@ -63,55 +64,78 @@ int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeou
     return answer;
 }
 
+void GPRSDisconnect() {
+    //закрыть все  TCP/IP соединения
+    sendATcommand("AT+CIPSHUT", "OK", 2000);
+    // Deactivate the bearer context
+    sendATcommand("AT+CGATT=0", "OK", 2000);
+}
+
+void GPRSinit() {
+  //закрыть все соединения
+  sendATcommand("AT+CIPSHUT", "OK", 2000);
+  delay(500);
+  
+  sendATcommand("AT+SAPBR=0,1", "OK", 2000); //включаем режим GPRS
+  //включаем режим GPRS
+  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", "OK", 2000); //включаем режим GPRS
+  //настриваем точку доступа APN
+  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"APN\",\"%s\"", APN);
+  sendATcommand(aux_str, "OK", 2000);
+  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"USER\",\"%s\"", USER);
+  sendATcommand(aux_str, "OK", 2000);
+  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"PWD\",\"%s\"", USER);
+  sendATcommand(aux_str, "OK", 2000);
+
+   //устанавка GPRS связи
+  while (sendATcommand("AT+SAPBR=1,1", "OK", 2000) == 0) {
+    delay(2000);
+  }
+
+  Serial.println("GPRS OK");
+  
+  
+  
+  //активируем одиночное TCP/IP соединение
+  sendATcommand("AT+CIPMUX=1", "OK", 2000);
+  delay(500);
+  //Уровень сигнала
+  sendATcommand("AT+CSQ", "OK", 2000);
+  delay(500);
+  //Регистрация?
+  sendATcommand("AT+CREG?", "OK", 2000);
+  delay(500);
+  //Проверка статуса GPRS?
+  sendATcommand("AT+CGATT?", "+CGATT:1", 2000);
+  delay(500);
+  //настриваем точку доступа APN
+//  snprintf(aux_str, sizeof(aux_str), "AT+CSTT=\"%s\"", APN, ",", USER, ",", USER);
+  //sendATcommand(aux_str, "OK", 2000);
+  sendATcommand("AT+CSTT=\"internet.mts.ru\",\"mts\",\"mts\"", "OK", 2000);
+  //устанавка GPRS соединения
+  delay(500);
+  sendATcommand("AT+CIICR", "OK", 80000);
+  delay(500);
+  //IP запрашиваем
+   sendATcommand("AT+CIFCR", "OK", 2000);
+  delay(500);
+  sendATcommand("AT+CIFCR", "OK", 2000);
+  delay(500);
+  sendATcommand("AT+CIFCR", "OK", 2000);
+  delay(500);
+
+  //Установка TCP соединения
+  sendATcommand("AT+CIPSTART=0,\"TCP\",\"m23.cloudmqtt.com\",\"12843\"", "OK", 2000);
+  sendATcommand("AT+CIPSTATUS=0", "OK", 2000);
+  delay(500);
+  
+  
+}
+
 //---------------- System ФУНКЦИИ ----------------
 
 void DrawMenu () {
-  if(millis()-millissend>INTERVALSEND )
-     {
-      // Initializes HTTP service
-     answer = sendATcommand("AT+HTTPINIT", "OK", 10000);
-     if (answer == 1)
-       {
-        // Sets CID parameter
-        answer = sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
-        if (answer == 1)
-          {// Sets url 
-           double temp = 185.43;  // 
-           String surl1=surl+"#A0:F3:C1:70:AA:94\n#013950005243291#"+String(temp)+"\n##";
-
-           surl1.toCharArray(url,surl1.length()+1);
-           snprintf(aux_str, sizeof(aux_str), "AT+HTTPPARA=\"URL\",\"%s\"", url);
-           answer = sendATcommand(aux_str, "OK", 5000);
-           if (answer == 1)
-           {// Starts GET action
-           answer = sendATcommand("AT+HTTPACTION=0", "+HTTPACTION:0,200", 10000);
-           if (answer == 1)
-             {
-             sprintf(aux_str, "AT+HTTPREAD");
-             sendATcommand(aux_str, "OK", 5000);
-             }
-           else
-             {
-             Serial.println("Error getting the url");
-             }
-           }
-         else
-           {
-           Serial.println("Error setting the url");
-           }
-         }
-       else
-         {
-         Serial.println("Error setting the CID");
-         }    
-       }
-    else
-       {
-       Serial.println("Error initializating");
-       }
-    sendATcommand("AT+HTTPTERM", "OK", 5000);
-    millissend=millis();
-    }
+  
 }
 
 void KeyPad () {
@@ -132,29 +156,13 @@ void setup() {
   SIM800.begin(9600); //запускаем программный serial порт
 
   Serial.println("Start!");
-  delay(3000);
+  
   //Модуль то работает?
   sendATcommand("OK", "OK", 2000);
   
   //включаем режим GPRS
-  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", "OK", 2000); //включаем режим GPRS
-  //настриваем точку доступа APN
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"APN\",\"%s\"", APN);
-  sendATcommand(aux_str, "OK", 2000);
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"USER\",\"%s\"", USER);
-  sendATcommand(aux_str, "OK", 2000);
-  snprintf(aux_str, sizeof(aux_str), "AT+SAPBR=3,1,\"PWD\",\"%s\"", USER);
-  sendATcommand(aux_str, "OK", 2000);
-
-  sendATcommand("AT+CREG?", "OK", 2000);
-  sendATcommand("AT+SAPBR=4,1", "OK", 2000);
-  //устанавка GPRS связи
-  while (sendATcommand("AT+SAPBR=1,1", "OK", 2000) == 0) {
-    delay(2000);
-  }
-  Serial.println("GPRS OK");
-
-  sendATcommand("AT+SAPBR=4,1", "OK", 2000);
+  GPRSinit();
+  
   delay(1000);
 }
 
