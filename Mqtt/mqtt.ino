@@ -17,11 +17,8 @@ bool rt = false; //флаг чтения температуры
 bool kr = 0; //флаг периода проверки клавиатуры
 
 char aux_str[150];
-unsigned long millissend=0;
 uint8_t answer=0;
 
-char url[150];
-String surl="http://narodmon.ru/post.php/?";
 
 //---------------- ФУНКЦИИ ----------------
 
@@ -122,11 +119,10 @@ void GPRSinit() {
     //sendATcommand("AT+CDNSCFG=\"8.8.8.8\",\"8.8.4.4\"", "OK", 2000);
     
     
-
     //Установка TCP соединения
-    sendATcommand("AT+CIPSTART=0,\"TCP\",\"m23.cloudmqtt.com\",\"12843\"", "OK", 2000);
-    sendATcommand("AT+CIPSTATUS=0", "OK", 2000);
-    delay(500);
+    sendATcommand("AT+CIPSTART=0,\"TCP\",\"m23.cloudmqtt.com\",\"12843\"", "CONNECT OK", 80000);
+    //sendATcommand("AT+CIPSTATUS=0", "OK", 2000);
+    //delay(500);
   
 }
 
@@ -161,6 +157,8 @@ void setup() {
   //включаем режим GPRS
   GPRSinit();
   
+  sendATcommand("AT+CIPSEND=5", ">", 2000);
+  sendATcommand("10 2C 00 06 4D 51 49 73 64 70 03 C2 00 3C 00 06 41 42 43 44 45 46 00 08 64 78 78 6B 67 6B 70 70 00 0C 71 41 55 5A 42 64 61 53 49 55 4C 78 30 13 00 08 76 61 6C 65 74 72 6F 6E 68 65 6C 6C 6F 72 61 76 69 1A", "OK", 2000);
   delay(1000);
 }
 
