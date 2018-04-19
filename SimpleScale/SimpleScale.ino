@@ -2,19 +2,17 @@
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
-#define AnalogRead 500 //период чтения напряжения, ms
+#define scaleRead 500 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 200 //период обновления экрана, ms
 #define del 10 //делитель настроечного коэффициента
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
-// HX711.DOUT  - pin #A1
-// HX711.PD_SCK - pin #A0
-HX711 scale;   // parameter "gain" is ommited; the default value 128 is used by the library
+HX711 scale;   
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
 
 volatile int tyme = 0; //переменная прерываний
 bool dt = false; //флаг обновления экрана
-bool rt = false; //флаг чтения температуры
+bool scR = false; //флаг чтения данных с тензодатчиков
 bool kr = 0; //флаг периода проверки клавиатуры
 
 String screenString1 = "Starting...";
@@ -51,7 +49,7 @@ void KeyPad () {
  
 }
 
-void ReadAnalog () {
+void readScale () {
   scale.power_up();
   sumScaleValue += scale.get_units(10);
   scale.power_down();              // put the ADC in sleep mode
@@ -76,31 +74,33 @@ void ReadAnalog () {
 }
 
 void setup() {
-  Serial.begin(9600);
+  //Serial.begin(9600);
   OCR0A = 0xAF; //прерывание
   TIMSK0 |= _BV(OCIE0A); //прерывание
-
-  scale.begin(A1, A0);
+  
   lcd.init(); // initialize the LCD
   lcd.backlight(); // Turn on the blacklight and print a message.
   lcd.print(screenString1);
   
+  // HX711.DOUT  - pin #A1
+  // HX711.PD_SCK - pin #A0
+  scale.begin(A1, A0);
   scale.set_scale(24960);     // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
   
-  Serial.println("Readings:");
+  //Serial.println("Readings:");
 }
 
 SIGNAL(TIMER0_COMPA_vect) { //прерывание считывающие мощность
   tyme = tyme + 1;
-  if (tyme % AnalogRead == 0) { rt = 1; };
+  if (tyme % scaleRead == 0) { scR = 1; };
   if (tyme % DrawTime == 0) { dt = 1; };
   if (tyme % KeyReadTime == 0) { kr = 1; };
 }
 
 void loop()
 {
-  if ((rt == 1)) { rt = 0; ReadAnalog();}; 
+  if ((scR == 1)) { scR = 0; readScale();}; 
   if (dt == 1) { dt = 0; DrawMenu(); };
   if (kr == 1) { kr = 0; KeyPad(); }; 
 }
