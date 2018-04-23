@@ -4,8 +4,10 @@
 
 #define scaleRead 500 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 200 //период обновления экрана, ms
-#define del 10 //делитель настроечного коэффициента
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
+
+#define analogPinKey A3 //входной пин для клавиатуры
+
 
 HX711 scale;   
 LiquidCrystal_I2C lcd(0x3F, 16, 2);
@@ -20,36 +22,39 @@ float scaleValue = 0;
 float sumScaleValue = 0;
 byte cntScale = 0;
 
+//---------------- ФУНКЦИИ ----------------
+
+//декодирует аналоговый сигнал от клавиатуры в номер нажатой кнопки
+byte key() {                       
+    //1(SEL-721), 2(LEFT-480),3(DOWN-306),4(UP-131),5(RIGHT-0)
+    int val = analogRead(KEYS);
+    if (val < 50)return UP;GHT;
+    if (val < 150) 
+    if (val < 350) return DOWN;
+    if (val < 500) return LEFT;
+    if (val < 800) return SELECT;
+    return 0;
+}
+ 
+
+//---------------- System ФУНКЦИИ ----------------
 void DrawMenu () {
   lcd.setCursor(0, 0);
-  lcd.print("                ");
+  lcd.print("                "); //очистим ранее выведенное
   lcd.setCursor(0, 0);
   lcd.print(screenString1);
+  
   int z = 0;
   int result = 0;
-  if (Serial.available() > 0) {
-    while (Serial.available() > 0) {
-      byte c1 = Serial.read(); 
-      if ((c1<58)&&(c1>47)) {
-        z = c1 - 48;
-        result = result*10+z;
-      } else {
-        z = 0;
-      }
-    }
-    scale.set_scale(result);
-    Serial.println("scale.set_scale:");
-    Serial.println(result);
-  }
- 
   
 }
 
 void KeyPad () {
- 
+  int analogSig = analogRead(analogPinKey);
+  byte numberKey = kyAnalogSigkHendler(analogSig);
 }
 
-void readScale () {
+void ReadScale () {
   scale.power_up();
   sumScaleValue += scale.get_units(10);
   scale.power_down();              // put the ADC in sleep mode
@@ -62,16 +67,11 @@ void readScale () {
     scaleValue = sumScaleValue/2;
     sumScaleValue = 0;
     
-    screenString1 = String(scaleValue);
-  
-    Serial.print("\t| average:\t");
-    Serial.println(scaleValue, 1);
+    screenString1 = String(scaleValue); //обновляем значение экрана 
   }
-  
-  
-  
-  
 }
+
+//---------------- setup / loop / system ----------------
 
 void setup() {
   //Serial.begin(9600);
@@ -88,10 +88,10 @@ void setup() {
   scale.set_scale(24960);     // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
   
-  //Serial.println("Readings:");
 }
 
-SIGNAL(TIMER0_COMPA_vect) { //прерывание считывающие мощность
+//прерывание, формирует мини операционную систему (system)
+SIGNAL(TIMER0_COMPA_vect) { 
   tyme = tyme + 1;
   if (tyme % scaleRead == 0) { scR = 1; };
   if (tyme % DrawTime == 0) { dt = 1; };
@@ -100,7 +100,7 @@ SIGNAL(TIMER0_COMPA_vect) { //прерывание считывающие мощ
 
 void loop()
 {
-  if ((scR == 1)) { scR = 0; readScale();}; 
+  if ((scR == 1)) { scR = 0; ReadScale();}; 
   if (dt == 1) { dt = 0; DrawMenu(); };
   if (kr == 1) { kr = 0; KeyPad(); }; 
 }
