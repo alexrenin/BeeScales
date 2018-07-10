@@ -1,7 +1,7 @@
 #include <HX711.h>
 #include "LedControl.h" 
 
-#define scaleRead 500 //период чтения  чтения данных с тензодатчиков, ms
+#define scaleRead 100 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 200 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
@@ -15,10 +15,31 @@ bool scR = false; //флаг чтения данных с тензодатчик
 bool kr = 0; //флаг периода проверки клавиатуры
 
 float scaleValue = 0;
-float sumScaleValue = 0;
-byte cntScale = 0;
+int t1 = 0;
+int t2 = 0;
 
 //---------------- ФУНКЦИИ ----------------
+float GetMedian (float digits[5]) {
+  byte samples = 5;
+  float temp = 0;
+  for (int i = 0; i < samples; i++){
+    for (int j = 0; j < samples - 1; j++){
+      if (digits[j] > digits[j + 1]){
+        temp = digits[j];
+        digits[j] = digits[j + 1];
+        digits[j + 1] = temp;
+      }
+    }
+  }
+
+  for (int i = 0; i < samples; i++) {
+    Serial.print("  ");
+    Serial.println(digits[i]);
+  }
+
+  return digits[2];
+}
+
 void drawArray (byte digits[5], byte dotNumb, bool mines) {
   byte digitNumb = 7;
   
@@ -26,7 +47,7 @@ void drawArray (byte digits[5], byte dotNumb, bool mines) {
     screen.setRow(0,digitNumb,0b00000001);
     digitNumb--;
   }
-
+  
   for (byte i = 0; i < 5; i++) {
     byte digit = digits[i];
     bool flag = false;
@@ -66,7 +87,7 @@ void drawNumber (float number) {
 
 //---------------- System ФУНКЦИИ ----------------
 void DrawMenu () {
-  Serial.println(scaleValue);
+  //Serial.println(scaleValue);
   
   screen.clearDisplay(0); // Очистить дисплей
   drawNumber(scaleValue); 
@@ -77,20 +98,19 @@ void KeyPad () {
 }
 
 void ReadScale () {
-  scale.power_up();
-  sumScaleValue += scale.get_units(10);
-  scale.power_down();              // put the ADC in sleep mode
+  float readDigits[5] = {0, 0, 0, 0, 0};
   
-  cntScale++;
-  
-  if (cntScale>=2) {
-    cntScale = 0;
-
-    scaleValue = sumScaleValue/2;
-    sumScaleValue = 0;
-    
-    
+  for (byte i = 0; i<5; i++) {
+    readDigits[i] = scale.get_units();
   }
+
+  scaleValue = GetMedian (readDigits);
+  Serial.println(scaleValue);
+
+  
+  t1 = millis();
+  Serial.println(t1 - t2);
+  t2 = t1;
 }
 
 //---------------- setup / loop / system ----------------
