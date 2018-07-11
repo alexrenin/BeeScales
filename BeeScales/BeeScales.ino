@@ -1,15 +1,18 @@
-#include <SoftwareSerial.h>
 #include <HX711.h>
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
 
 #define ScaleRead 500 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 1000 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
-LiquidCrystal_I2C lcd(0x27,16,2);  // Устанавливаем дисплей
-SoftwareSerial SIM800(2, 3); //подгтавливаем программный serial порт на пинах 2 и 3
+#define LcdPowerPin 12 //пин питания экрана
+
 HX711 scale;  
+LiquidCrystal_I2C lcd(0x3F,16,2);  // Устанавливаем дисплей
+SoftwareSerial SIM800(2, 3); //подгтавливаем программный serial порт на пинах 2 и 3
+
 
 volatile int tyme = 0; //переменная прерываний
 bool dt = false; //флаг обновления экрана
@@ -17,8 +20,53 @@ bool scR = false; //флаг чтения данных с тензодатчик
 bool kr = 0; //флаг периода проверки клавиатуры
 
 float scaleValue = 0;
+float sumScaleValue = 0;
+byte cntScale = 0;
 
 //---------------- ФУНКЦИИ ----------------
+void devicePowerUP() {
+  digitalWrite(LcdPowerPin, HIGH);
+}
+
+void devicePowerDOWN() {
+  digitalWrite(LcdPowerPin, LOW);
+}
+
+//декодирует аналоговый сигнал от клавиатуры в номер нажатой кнопки
+byte key() {                       
+    //1(SEL-721), 2(LEFT-480),3(DOWN-306),4(UP-131),5(RIGHT-0)
+//    int val = analogRead(KEYS);
+//    if (val < 50) return RIGHT; 
+//    if (val < 150) return UP;
+//    if (val < 350) return DOWN;
+//    if (val < 500) return LEFT;
+//    if (val < 800) return SELECT;
+//    return 0;
+}
+
+void drawNumber (float number, byte precision) {
+  int intNumber = 0; //Целая часть
+  byte fraction = 0; //Дробная часть
+  bool mines = false;
+       
+  precision = pow(10, precision);
+  number = round(number*precision);
+  
+  if (number < 0) 
+    mines = true; 
+  intNumber = (int) number / precision;
+  fraction = (byte) number % precision;
+
+  lcd.print(intNumber);
+  lcd.print(".");
+  lcd.print(fraction);
+  if (fraction == 0) {
+    for (int i = 1; i<(precision/10); i=i*10) {
+      lcd.print(0);
+    }
+  }
+}
+
 float GetMedian (float digits[5]) {
   byte samples = 5;
   float temp = 0;
@@ -32,23 +80,18 @@ float GetMedian (float digits[5]) {
     }
   }
 
-  for (int i = 0; i < samples; i++) {
-    Serial.print("  ");
-    Serial.println(digits[i]);
-  }
-
   return digits[2];
 }
 
 
 //---------------- System ФУНКЦИИ ----------------
 void DrawMenu () {
-//  Serial.println("DrawMenu");
-//  lcd.noBacklight();
-//  lcd.setCursor(3,0);
-//  lcd.print("Hello, world!");
-//  lcd.setCursor(2,1);
-//  lcd.print("Ywrobot Arduino!"); 
+  lcd.setCursor(0, 0);
+  lcd.print("                "); //очистим ранее выведенное
+  lcd.setCursor(0, 0);
+  
+  drawNumber(scaleValue, 2);
+  lcd.print(" kg");
 }
 
 void KeyPad () {
@@ -72,20 +115,23 @@ void setup() {
   OCR0A = 0xAF; //прерывание
   TIMSK0 |= _BV(OCIE0A); //прерывание
 
-  Serial.begin(9600);
-  SIM800.begin(9600); //запускаем программный serial порт
+  pinMode(LcdPowerPin, OUTPUT);
+  digitalWrite(LcdPowerPin, HIGH);
   
-  lcd.init(); // initialize the LCD
-  lcd.backlight(); // Включаем подсветку дисплея
-
-  Serial.println("Start!");
-  SIM800.println("AT"); //Готовm модул к работе?
-
   // HX711.DOUT  - pin #A1
   // HX711.PD_SCK - pin #A0
   scale.begin(A1, A0);
   scale.set_scale(24960);     // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
+
+  lcd.init(); // initialize the LCD
+  lcd.backlight(); // Включаем подсветку дисплея
+   
+  Serial.begin(9600);
+  SIM800.begin(9600); //запускаем программный serial порт
+
+  Serial.println("Start!");
+  SIM800.println("AT"); //Готовm модул к работе?
 }
 
 //прерывание, формирует мини операционную систему (system)
