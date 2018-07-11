@@ -28,8 +28,8 @@ byte cntScale = 0;
 byte key() {                       
     //1(SEL-721), 2(LEFT-480),3(DOWN-306),4(UP-131),5(RIGHT-0)
     int val = analogRead(KEYS);
-    if (val < 50)return UP;GHT;
-    if (val < 150) 
+    if (val < 50) return RIGHT; 
+    if (val < 150) return UP;
     if (val < 350) return DOWN;
     if (val < 500) return LEFT;
     if (val < 800) return SELECT;
