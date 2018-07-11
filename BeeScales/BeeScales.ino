@@ -2,6 +2,7 @@
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 #include <SoftwareSerial.h>
+#include <DS3231.h>
 
 #define ScaleRead 500 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 1000 //период обновления экрана, ms
@@ -11,6 +12,7 @@
 
 HX711 scale;  
 LiquidCrystal_I2C lcd(0x3F,16,2);  // Устанавливаем дисплей
+DS3231 Clock; //Часы
 SoftwareSerial SIM800(2, 3); //подгтавливаем программный serial порт на пинах 2 и 3
 
 
@@ -19,11 +21,42 @@ bool dt = false; //флаг обновления экрана
 bool scR = false; //флаг чтения данных с тензодатчиков
 bool kr = 0; //флаг периода проверки клавиатуры
 
+//scale variable
 float scaleValue = 0;
 float sumScaleValue = 0;
 byte cntScale = 0;
 
+//clock variable
+byte year, month, date, doW, hour, minute, second;
+bool Century=false;
+bool h12;
+bool PM, g;
+
 //---------------- ФУНКЦИИ ----------------
+void setTime(byte sYear, byte sMonth, byte sDate,
+            byte sDoW, byte sHour, byte sMinute,
+            byte sSecond) {
+ 
+  Clock.setClockMode(h12);  // set to 24h
+ 
+  Clock.setYear(sYear);
+  Clock.setMonth(sMonth);
+  Clock.setDate(sDate);
+  Clock.setDoW(sDoW);
+  Clock.setHour(sHour);
+  Clock.setMinute(sMinute);
+  Clock.setSecond(sSecond);  
+}
+
+void getTime() {
+  year=Clock.getYear();
+  month=Clock.getMonth(Century);
+  date=Clock.getDate();
+  hour=Clock.getHour(h12,PM); 
+  minute=Clock.getMinute();  
+  second=Clock.getSecond();
+}
+
 void devicePowerUP() {
   digitalWrite(LcdPowerPin, HIGH);
 }
