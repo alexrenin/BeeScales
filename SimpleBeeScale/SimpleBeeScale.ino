@@ -204,7 +204,7 @@ float GetMedian (float digits[5]) {
 //---------------- System ФУНКЦИИ ----------------
 void drawWeight() {
   lcd.setCursor(0, 1);
-  lcd.print("        "); //очистим ранее выведенное
+  lcd.print("          "); //очистим ранее выведенное
   lcd.setCursor(0, 1);
   
   drawNumber(scaleValue, 2);
@@ -330,12 +330,12 @@ void setup() {
   scale.tare();               // reset the scale to 0
 
   lcd.init(); // initialize the LCD
-//  lcd.createChar(0, charge0);
-//  lcd.createChar(1, discharge0);
-//  lcd.createChar(2, charge1);
-//  lcd.createChar(3, discharge1);
-//  lcd.createChar(4, charge2);
-//  lcd.createChar(5, discharge2);
+  lcd.createChar(0, charge0);
+  lcd.createChar(1, discharge0);
+  lcd.createChar(2, charge1);
+  lcd.createChar(3, discharge1);
+  lcd.createChar(4, charge2);
+  lcd.createChar(5, discharge2);
   lcd.backlight(); // Включаем подсветку дисплея
   lcd.clear();
   
