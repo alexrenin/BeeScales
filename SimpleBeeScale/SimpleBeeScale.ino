@@ -1,6 +1,7 @@
 #include <HX711.h>
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
+#include <EEPROM.h>
 
 #define ScaleRead 150 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 1000 //период обновления экрана, ms
@@ -9,6 +10,8 @@
 #define KeypadPin A2 //За сколько измерений усреднять значения веса
 
 #define CntAvScaleRead 5 //За сколько измерений усреднять значения веса
+#define KeypadMaratory 150 //время маротория на считывание значений клавиатуры для исключения 
+                          //повторного нажатия, ms
 
 #define SELECT 1 //коды клавиш
 #define UP 2 //коды клавиш
@@ -16,6 +19,7 @@
 #define LEFT 4 //коды клавиш
 #define RIGHT 5 //коды клавиш
 
+//19 ячейка EEPROM - хранит порядковый номер записанного веса
 
 HX711 scale;  
 LiquidCrystal_I2C lcd(0x3F,16,2);  // Устанавливаем дисплей
@@ -31,11 +35,45 @@ byte cntReadDigits = 0;
 float sumScaleValue = 0;
 byte cntSumScale = 0;
 float scaleValue = 0;
+float scaleValueRTU = 0;
 
 //keypad variable
 byte curPresKey = 0; //код текущей нажатой кнопки
+bool keyPressed = 0; //Флан мартория обработки нажатия для исключения повторного нажатия
+int lastPressedTime = 0; //время последнего нажатия
+
+
+//menu / archive variable
+bool flagArchive = 0; //флаг нахождения в режиме работы с архивом
+byte adress = 0; //адресс текущей ячейки EEPROM для записи
+
 
 //---------------- ФУНКЦИИ ----------------
+void writeToArchive (byte adress1, float value) {
+  if (adress > 166) return;
+  
+  int adr2 = 20+adress1*6;
+  int intValue = round(value*100);
+  
+  EEPROM.write(adr2, intValue);
+  EEPROM.write(adr2+1, intValue>>8); 
+//  EEPROM.write(adr2+2, (year<<2) | (month>>2));
+//  EEPROM.write(adr2+3, ((month<<6) | date));  
+//  EEPROM.write(adr2+4, hour);
+//  EEPROM.write(adr2+5, minute); 
+  EEPROM.write(19, adress1+1);
+}
+void readFromArchive(byte adress1) {
+  int adr2 = 20+adress1*6;
+  
+  scaleValue = EEPROM.read(adr2) | (EEPROM.read(adr2+1)<<8);
+//  year=EEPROM.read(adr2+2)>>2;
+//  month=(EEPROM.read(adr2+3)>>6) | ((EEPROM.read(adr2+2)&0x3)<<2);
+//  date=EEPROM.read(adr2+3) & 0x3F;
+//  hour=EEPROM.read(adr2+4);
+//  minute=EEPROM.read(adr2+5);
+}
+
 
 //декодирует аналоговый сигнал от клавиатуры в номер нажатой кнопки
 byte key() {                       
@@ -91,18 +129,85 @@ float GetMedian (float digits[5]) {
 
 
 //---------------- System ФУНКЦИИ ----------------
-void DrawMenu () {
+void drawWeight() {
   lcd.setCursor(0, 1);
   lcd.print("                "); //очистим ранее выведенное
   lcd.setCursor(0, 1);
   
   drawNumber(scaleValue, 2);
-  lcd.print(" kg");
+  lcd.print(" kg");  
+}
+
+void DrawMenu () {
+  lcd.setCursor(4, 0);
+  lcd.print("   "); //очистим ранее выведенное
+  if (flagArchive) {
+    if (adress<10)  lcd.print(0);
+    if (adress<100) lcd.print(0);
+    lcd.print(adress);
+    
+  } else {
+    
+  }
+
+  drawWeight();
 }
 
 void KeyPad () {
- byte keyCode = key(); 
- Serial.println(keyCode);
+ if (!keyPressed){ //мороторий на нажатие?
+    //ветка "нет"
+   byte keyCode = key(); 
+
+   if (keyCode != 0) {
+    keyPressed = 1;
+    lastPressedTime = millis(); 
+   }
+   
+   switch (keyCode) {
+    case SELECT:
+      //запись в архив
+      if (!flagArchive) {
+        writeToArchive(adress, scaleValue);
+        flagArchive=!flagArchive;
+      }
+      
+      break;
+    case UP:
+      if (flagArchive) {
+        adress++;
+        readFromArchive(adress);
+      }
+      break;
+    case DOWN:
+      if (flagArchive) {
+        adress--; 
+        readFromArchive(adress);
+      }
+      break;
+    case LEFT:
+      break;
+    case RIGHT:
+      //вход в архив
+      flagArchive=!flagArchive;
+  
+      if (!flagArchive) {
+        adress = EEPROM.read(19); //последняя записанная ячейка
+        Serial.println("Archiv OFF");
+      } else {
+        readFromArchive(adress);
+      }
+      
+      break;
+    default:
+      keyPressed = 0;
+      break;
+   }
+ } else {
+  int currentTime = millis();
+  if ((currentTime-lastPressedTime)>KeypadMaratory) {
+    keyPressed = 0;
+  }   
+ }
 }
 
 void ReadScale () {
@@ -115,11 +220,15 @@ void ReadScale () {
     cntReadDigits = 0;
 
     if (cntSumScale >= CntAvScaleRead) {
-      scaleValue = sumScaleValue/cntSumScale;
+      scaleValueRTU = sumScaleValue/cntSumScale;
       //  Serial.println(scaleValue);
       cntSumScale = 0;
       sumScaleValue = 0;
     }
+  }
+
+  if (!flagArchive) {
+    scaleValue = scaleValueRTU;
   }
 }
 
@@ -136,7 +245,9 @@ void setup() {
 
   lcd.init(); // initialize the LCD
   lcd.backlight(); // Включаем подсветку дисплея
-   
+  lcd.clear();
+  
+  pinMode(KeypadPin, INPUT);
   Serial.begin(9600);
   Serial.println("Start!");
 }
