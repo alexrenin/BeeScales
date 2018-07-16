@@ -10,7 +10,7 @@
 #define KeypadPin A2 //За сколько измерений усреднять значения веса
 
 #define CntAvScaleRead 5 //За сколько измерений усреднять значения веса
-#define KeypadMaratory 150 //время маротория на считывание значений клавиатуры для исключения 
+#define KeypadMaratory 300 //время маротория на считывание значений клавиатуры для исключения 
                           //повторного нажатия, ms
 
 #define SELECT 1 //коды клавиш
@@ -46,8 +46,72 @@ int lastPressedTime = 0; //время последнего нажатия
 //menu / archive variable
 bool flagArchive = 0; //флаг нахождения в режиме работы с архивом
 byte adress = 0; //адресс текущей ячейки EEPROM для записи
-
-
+uint8_t charge0[8] =  //символ заряда батареи
+{
+  B11111,
+  B10000,
+  B10111,
+  B10111,
+  B10111,
+  B10111,
+  B10000,
+  B11111,
+};
+uint8_t discharge0[8] =  //символ заряда батареи
+{
+  B11111,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B11111,
+};
+uint8_t charge1[8] =  //символ заряда батареи
+{
+  B11111,
+  B00000,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B00000,
+  B11111,
+};
+uint8_t discharge1[8] =  //символ заряда батареи
+{
+  B11111,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B11111,
+};
+uint8_t charge2[8] =  //символ заряда батареи
+{
+  B11111,
+  B00001,
+  B11101,
+  B11101,
+  B11101,
+  B11101,
+  B00001,
+  B11111,
+};
+uint8_t discharge2[8] =  //символ заряда батареи
+{
+  B11111,
+  B00001,
+  B00001,
+  B00001,
+  B00001,
+  B00001,
+  B00001,
+  B11111,
+};
 //---------------- ФУНКЦИИ ----------------
 void writeToArchive (byte adress1, float value) {
   if (adress > 166) return;
@@ -61,7 +125,7 @@ void writeToArchive (byte adress1, float value) {
 //  EEPROM.write(adr2+3, ((month<<6) | date));  
 //  EEPROM.write(adr2+4, hour);
 //  EEPROM.write(adr2+5, minute); 
-  EEPROM.write(19, adress1+1);
+  EEPROM.write(19, adress1);
 }
 void readFromArchive(byte adress1) {
   int adr2 = 20+adress1*6;
@@ -86,6 +150,15 @@ byte key() {
     if (val < 600) return RIGHT;
     if (val < 800) return SELECT;
     return 0;
+}
+void drawLevelCharge (byte level) {
+  if (level > 4) return;
+
+  if (level > 0) { lcd.write(0); } else { lcd.write(1); }
+  if (level > 1) { lcd.write(2); } else { lcd.write(3); }
+  if (level > 2) { lcd.write(2); } else { lcd.write(3); }
+  if (level > 3) { lcd.write(4); } else { lcd.write(5); }
+  
 }
 
 void drawNumber (float number, byte precision) {
@@ -131,7 +204,7 @@ float GetMedian (float digits[5]) {
 //---------------- System ФУНКЦИИ ----------------
 void drawWeight() {
   lcd.setCursor(0, 1);
-  lcd.print("                "); //очистим ранее выведенное
+  lcd.print("        "); //очистим ранее выведенное
   lcd.setCursor(0, 1);
   
   drawNumber(scaleValue, 2);
@@ -139,15 +212,19 @@ void drawWeight() {
 }
 
 void DrawMenu () {
-  lcd.setCursor(4, 0);
+  lcd.setCursor(13, 0);
   lcd.print("   "); //очистим ранее выведенное
+  lcd.setCursor(12, 1);
+  lcd.print("    "); //очистим ранее выведенное
   if (flagArchive) {
+    lcd.setCursor(13, 0);
     if (adress<10)  lcd.print(0);
     if (adress<100) lcd.print(0);
     lcd.print(adress);
     
   } else {
-    
+    lcd.setCursor(12, 1);
+    drawLevelCharge(0);
   }
 
   drawWeight();
@@ -166,21 +243,29 @@ void KeyPad () {
    switch (keyCode) {
     case SELECT:
       //запись в архив
+      Serial.println("Select");
       if (!flagArchive) {
+        adress = EEPROM.read(19); //последняя записанная ячейка
+        adress++;
         writeToArchive(adress, scaleValue);
         flagArchive=!flagArchive;
+        Serial.println("Write");
       }
       
       break;
     case UP:
+      Serial.println("Up");
       if (flagArchive) {
         adress++;
+        if (adress == 167) {adress = 1;}
         readFromArchive(adress);
       }
       break;
     case DOWN:
+      Serial.println("Down");
       if (flagArchive) {
         adress--; 
+        if (adress == 0) {adress = 166;}
         readFromArchive(adress);
       }
       break;
@@ -189,12 +274,13 @@ void KeyPad () {
     case RIGHT:
       //вход в архив
       flagArchive=!flagArchive;
-  
+      adress = EEPROM.read(19); //последняя записанная ячейка
+      
       if (!flagArchive) {
-        adress = EEPROM.read(19); //последняя записанная ячейка
         Serial.println("Archiv OFF");
       } else {
         readFromArchive(adress);
+        Serial.println("Archiv IN");
       }
       
       break;
@@ -244,6 +330,12 @@ void setup() {
   scale.tare();               // reset the scale to 0
 
   lcd.init(); // initialize the LCD
+//  lcd.createChar(0, charge0);
+//  lcd.createChar(1, discharge0);
+//  lcd.createChar(2, charge1);
+//  lcd.createChar(3, discharge1);
+//  lcd.createChar(4, charge2);
+//  lcd.createChar(5, discharge2);
   lcd.backlight(); // Включаем подсветку дисплея
   lcd.clear();
   
