@@ -6,14 +6,17 @@
 #define ScaleRead 150 //период чтения  чтения данных с тензодатчиков, ms
 #define DrawTime 1000 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры, ms
+#define BatteryTime 5000 //период обновления уровня заряда, ms
 
-#define KeypadPin A2 //За сколько измерений усреднять значения веса
+#define KeypadPin A2 //пин, принимающий сигнал с клавиатуры
+#define BattaryPin A3 //пин, принимающий сигнал от батареи
 
 #define CntAvScaleRead 5 //За сколько измерений усреднять значения веса
 #define CoefficientScale 24960 //За сколько измерений усреднять значения веса
 #define KeypadMaratory 300 //время маротория на считывание значений клавиатуры для исключения 
                           //повторного нажатия, ms
-
+#define MaxBatteryVoltage 4.2 //Напряжение полностью заряженной батареи (значение на ацп)
+#define MinBatteryVoltage 2.9 //Напряжение полностью разряженной батареи (значение на ацп)
 
 #define SELECT 1 //коды клавиш
 #define UP 2 //коды клавиш
@@ -30,6 +33,7 @@ volatile int tyme = 0; //переменная прерываний
 bool dt = false; //флаг обновления экрана
 bool scR = false; //флаг чтения данных с тензодатчиков
 bool kr = 0; //флаг периода проверки клавиатуры
+bool bt = 1; //флаг периода проверки уровня батареи
 
 //scale variable
 float readDigits[5] = {0, 0, 0, 0, 0};
@@ -45,7 +49,8 @@ bool keyPressed = 0; //Флан мартория обработки нажати
 int lastPressedTime = 0; //время последнего нажатия
 
 
-//menu / archive variable
+//menu / archive variable and other
+byte batteryLevel = 0; //уровень заряда батареи
 bool flagArchive = 0; //флаг нахождения в режиме работы с архивом
 byte adress = 0; //адресс текущей ячейки EEPROM для записи
 uint8_t charge0[8] =  //символ заряда батареи
@@ -115,6 +120,15 @@ uint8_t discharge2[8] =  //символ заряда батареи
   B11111,
 };
 //---------------- ФУНКЦИИ ----------------
+byte getBatteryLevel() {
+  byte batLevelPercent = analogRead(BattaryPin)/(MaxBatteryVoltage/5*1024)*100;
+  if (batLevelPercent >= 75) return 4;
+  if (batLevelPercent >= 50) return 3;
+  if (batLevelPercent >= 25) return 2;
+  if (batLevelPercent > 5)  return 1;
+  if (batLevelPercent >= 0) return 0;
+}
+
 void writeToArchive (byte adress1, float value) {
   if (adress > 166) return;
   
@@ -163,29 +177,6 @@ void drawLevelCharge (byte level) {
   
 }
 
-void drawNumber (float number, byte precision) {
-  int intNumber = 0; //Целая часть
-  byte fraction = 0; //Дробная часть
-  bool mines = false;
-       
-  precision = pow(10, precision);
-  number = round(number*precision);
-  
-  if (number < 0) 
-    mines = true; 
-  intNumber = (int) number / precision;
-  fraction = (byte) number % precision;
-
-  lcd.print(intNumber);
-  lcd.print(".");
-  lcd.print(fraction);
-  if (fraction == 0) {
-    for (int i = 1; i<(precision/10); i=i*10) {
-      lcd.print(0);
-    }
-  }
-}
-
 float GetMedian (float digits[5]) {
   byte samples = 5;
   float temp = 0;
@@ -202,14 +193,11 @@ float GetMedian (float digits[5]) {
   return digits[2];
 }
 
-
-//---------------- System ФУНКЦИИ ----------------
 void drawWeight() {
   lcd.setCursor(0, 1);
-  lcd.print("          "); //очистим ранее выведенное
+  lcd.print("           "); //очистим ранее выведенное
   lcd.setCursor(0, 1);
-  
-  drawNumber(scaleValue, 2);
+  lcd.print(scaleValue);
   lcd.print(" kg");  
 }
 
@@ -226,12 +214,13 @@ void DrawMenu () {
     
   } else {
     lcd.setCursor(12, 1);
-    drawLevelCharge(0);
+    drawLevelCharge(batteryLevel);
   }
 
   drawWeight();
 }
 
+//---------------- System ФУНКЦИИ ----------------
 void KeyPad () {
  if (!keyPressed){ //мороторий на нажатие?
     //ветка "нет"
@@ -273,7 +262,7 @@ void KeyPad () {
       break;
     case LEFT:
       //сброс до тары
-      Serial.println(scale.get_offset());
+      Serial.println("scale.tare()");
       scale.tare();
       break;
     case RIGHT:
@@ -303,24 +292,33 @@ void KeyPad () {
 
 void ReadScale () {
   readDigits[cntReadDigits] = scale.get_units();
+//  Serial.print("weight = ");
+//  Serial.println(readDigits[cntReadDigits]);
   cntReadDigits++;
   
   if (cntReadDigits > 4) {
+//    Serial.print("weight Median = ");
+//    Serial.println(GetMedian (readDigits));
     sumScaleValue += GetMedian (readDigits);
     cntSumScale++;
     cntReadDigits = 0;
 
     if (cntSumScale >= CntAvScaleRead) {
       scaleValueRTU = sumScaleValue/cntSumScale;
-      //  Serial.println(scaleValue);
+//      Serial.print("weight RTU = ");
+//      Serial.println(scaleValueRTU);
       cntSumScale = 0;
       sumScaleValue = 0;
     }
   }
 
   if (!flagArchive) {
-    scaleValue = scaleValueRTU;
+   scaleValue = scaleValueRTU;
   }
+}
+
+void UpdateBatteryLevel() {
+  batteryLevel = getBatteryLevel();
 }
 
 
@@ -332,7 +330,7 @@ void setup() {
   // HX711.PD_SCK - pin #A0
   scale.begin(A1, A0);
   scale.set_scale(CoefficientScale);     // this value is obtained by calibrating the scale with known weights; see the README for details
-  //scale.tare();               // reset the scale to 0
+  scale.tare();               // reset the scale to 0
   
   lcd.init(); // initialize the LCD
   lcd.createChar(0, charge0);
@@ -345,6 +343,7 @@ void setup() {
   lcd.clear();
   
   pinMode(KeypadPin, INPUT);
+  pinMode(BattaryPin, INPUT);
   Serial.begin(9600);
   Serial.println("Start!");
 }
@@ -355,13 +354,14 @@ SIGNAL(TIMER0_COMPA_vect) {
   if (tyme % ScaleRead == 0) { scR = 1; };
   if (tyme % DrawTime == 0) { dt = 1; };
   if (tyme % KeyReadTime == 0) { kr = 1; };
+  if (tyme % BatteryTime == 0) { bt = 1; };
 }
 
 void loop() {
   if (scR == 1) { scR = 0; ReadScale(); };  
   if (dt == 1) { dt = 0; DrawMenu(); };
   if (kr == 1) { kr = 0; KeyPad(); };
-  
+  if (bt == 1) { bt = 0; UpdateBatteryLevel(); };
 }
 
 
