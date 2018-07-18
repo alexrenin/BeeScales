@@ -10,8 +10,10 @@
 #define KeypadPin A2 //За сколько измерений усреднять значения веса
 
 #define CntAvScaleRead 5 //За сколько измерений усреднять значения веса
+#define CoefficientScale 24960 //За сколько измерений усреднять значения веса
 #define KeypadMaratory 300 //время маротория на считывание значений клавиатуры для исключения 
                           //повторного нажатия, ms
+
 
 #define SELECT 1 //коды клавиш
 #define UP 2 //коды клавиш
@@ -270,6 +272,9 @@ void KeyPad () {
       }
       break;
     case LEFT:
+      //сброс до тары
+      Serial.println(scale.get_offset());
+      scale.tare();
       break;
     case RIGHT:
       //вход в архив
@@ -326,9 +331,9 @@ void setup() {
   // HX711.DOUT  - pin #A1
   // HX711.PD_SCK - pin #A0
   scale.begin(A1, A0);
-  scale.set_scale(24960);     // this value is obtained by calibrating the scale with known weights; see the README for details
-  scale.tare();               // reset the scale to 0
-
+  scale.set_scale(CoefficientScale);     // this value is obtained by calibrating the scale with known weights; see the README for details
+  //scale.tare();               // reset the scale to 0
+  
   lcd.init(); // initialize the LCD
   lcd.createChar(0, charge0);
   lcd.createChar(1, discharge0);
