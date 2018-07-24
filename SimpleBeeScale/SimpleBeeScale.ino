@@ -17,6 +17,7 @@
                           //повторного нажатия, ms
 #define MaxBatteryVoltage 4.2 //Напряжение полностью заряженной батареи (значение на ацп)
 #define MinBatteryVoltage 2.9 //Напряжение полностью разряженной батареи (значение на ацп)
+#define CntMedianFilter 9 //сколько измерений делается для мединного фильтра
 
 #define SELECT 1 //коды клавиш
 #define UP 2 //коды клавиш
@@ -36,7 +37,7 @@ bool kr = 0; //флаг периода проверки клавиатуры
 bool bt = 1; //флаг периода проверки уровня батареи
 
 //scale variable
-float readDigits[5] = {0, 0, 0, 0, 0};
+float readDigits[CntMedianFilter];
 byte cntReadDigits = 0;
 float sumScaleValue = 0;
 byte cntSumScale = 0;
@@ -177,11 +178,11 @@ void drawLevelCharge (byte level) {
   
 }
 
-float GetMedian (float digits[5]) {
-  byte samples = 5;
+float GetMedian (float digits[CntMedianFilter]) {
   float temp = 0;
-  for (int i = 0; i < samples; i++){
-    for (int j = 0; j < samples - 1; j++){
+  
+  for (int i = 0; i < CntMedianFilter; i++){
+    for (int j = 0; j < CntMedianFilter - 1; j++){
       if (digits[j] > digits[j + 1]){
         temp = digits[j];
         digits[j] = digits[j + 1];
@@ -190,7 +191,21 @@ float GetMedian (float digits[5]) {
     }
   }
 
-  return digits[2];
+  float sum = 0;
+  for (int i = 0; i < CntMedianFilter; i++) {
+//    Serial.print("   ");
+//    Serial.println(digits[i]);
+
+     sum += digits[i];
+  }
+  
+  Serial.print("avrage = ");
+  Serial.println(sum/15);
+  Serial.print("middle = ");
+  Serial.println(digits[CntMedianFilter/2]);
+  Serial.println();
+  
+  return digits[CntMedianFilter/2];
 }
 
 void drawWeight() {
@@ -296,7 +311,7 @@ void ReadScale () {
 //  Serial.println(readDigits[cntReadDigits]);
   cntReadDigits++;
   
-  if (cntReadDigits > 4) {
+  if (cntReadDigits >= CntMedianFilter) {
 //    Serial.print("weight Median = ");
 //    Serial.println(GetMedian (readDigits));
     sumScaleValue += GetMedian (readDigits);
@@ -360,7 +375,7 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop() {
   if (scR == 1) { scR = 0; ReadScale(); };  
   if (dt == 1) { dt = 0; DrawMenu(); };
-  if (kr == 1) { kr = 0; KeyPad(); };
+//  if (kr == 1) { kr = 0; KeyPad(); };
   if (bt == 1) { bt = 0; UpdateBatteryLevel(); };
 }
 
