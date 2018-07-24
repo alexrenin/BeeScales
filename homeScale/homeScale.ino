@@ -5,7 +5,7 @@
 #define DrawTime 200 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
-#define CntMedianFilter 9 //период проверки нажатия клавиатуры
+#define CntMedianFilter 9 //сколько измерений делается для мединного фильтра
 
 HX711 scale;  
 //Pin 7 to DIN, 6 to Clk, 5 to LOAD, no.of devices is 1  
