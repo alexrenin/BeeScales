@@ -72,7 +72,7 @@ void drawNumber (float number) {
   byte dotNumb = 2;
   bool mines = false;
   
-  if (number < 0) {
+  if ((number < 0) && (intNumber != 0)) {
     mines = true;
   }
     
@@ -118,7 +118,7 @@ void setup() {
   TIMSK0 |= _BV(OCIE0A); //прерывание
   
   screen.shutdown(0,false); // Включить дисплей
-  screen.setIntensity(0,5);// Установить уровень яркости (0 is min, 15 is max) 
+  screen.setIntensity(0,10);// Установить уровень яркости (0 is min, 15 is max) 
   screen.clearDisplay(0); // Очистить дисплей
   
   // HX711.DOUT  - pin #A1
