@@ -5,6 +5,8 @@
 #define DrawTime 200 //период обновления экрана, ms
 #define KeyReadTime 20 //период проверки нажатия клавиатуры
 
+#define CntMedianFilter 9 //период проверки нажатия клавиатуры
+
 HX711 scale;  
 //Pin 7 to DIN, 6 to Clk, 5 to LOAD, no.of devices is 1  
 LedControl screen = LedControl(7,6,5,1); 
@@ -19,11 +21,10 @@ int t1 = 0;
 int t2 = 0;
 
 //---------------- ФУНКЦИИ ----------------
-float GetMedian (float digits[5]) {
-  byte samples = 5;
+float GetMedian (float digits[CntMedianFilter]) {
   float temp = 0;
-  for (int i = 0; i < samples; i++){
-    for (int j = 0; j < samples - 1; j++){
+  for (int i = 0; i < CntMedianFilter; i++){
+    for (int j = 0; j < CntMedianFilter - 1; j++){
       if (digits[j] > digits[j + 1]){
         temp = digits[j];
         digits[j] = digits[j + 1];
@@ -32,12 +33,12 @@ float GetMedian (float digits[5]) {
     }
   }
 
-  for (int i = 0; i < samples; i++) {
+  for (int i = 0; i < CntMedianFilter; i++) {
     Serial.print("  ");
     Serial.println(digits[i]);
   }
 
-  return digits[2];
+  return digits[CntMedianFilter/2];
 }
 
 void drawArray (byte digits[5], byte dotNumb, bool mines) {
@@ -98,19 +99,15 @@ void KeyPad () {
 }
 
 void ReadScale () {
-  float readDigits[5] = {0, 0, 0, 0, 0};
+  float readDigits[CntMedianFilter];
   
-  for (byte i = 0; i<5; i++) {
+  for (byte i = 0; i<CntMedianFilter; i++) {
     readDigits[i] = scale.get_units();
   }
 
   scaleValue = GetMedian (readDigits);
   Serial.println(scaleValue);
 
-  
-  t1 = millis();
-  Serial.println(t1 - t2);
-  t2 = t1;
 }
 
 //---------------- setup / loop / system ----------------
