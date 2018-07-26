@@ -18,6 +18,7 @@
 #define MaxBatteryVoltage 4.2 //Напряжение полностью заряженной батареи (значение на ацп)
 #define MinBatteryVoltage 2.9 //Напряжение полностью разряженной батареи (значение на ацп)
 #define CntMedianFilter 9 //сколько измерений делается для мединного фильтра
+#define scalOffsetEEpromCell 0 // (0-3) адресс первой ячейки EEPROM, хранящей scaleOffset 
 
 #define SELECT 1 //коды клавиш
 #define UP 2 //коды клавиш
@@ -43,12 +44,12 @@ float sumScaleValue = 0;
 byte cntSumScale = 0;
 float scaleValue = 0;
 float scaleValueRTU = 0;
+long currentScaleOffset = 0;
 
 //keypad variable
 byte curPresKey = 0; //код текущей нажатой кнопки
 bool keyPressed = 0; //Флан мартория обработки нажатия для исключения повторного нажатия
 int lastPressedTime = 0; //время последнего нажатия
-
 
 //menu / archive variable and other
 byte batteryLevel = 0; //уровень заряда батареи
@@ -121,6 +122,24 @@ uint8_t discharge2[8] =  //символ заряда батареи
   B11111,
 };
 //---------------- ФУНКЦИИ ----------------
+long EEPROM_long_read(int addr) {    
+  byte raw[4];
+  for(byte i = 0; i < 4; i++) raw[i] = EEPROM.read(addr+i);
+  long &num = (long&)raw;
+  return num;
+}
+
+void EEPROM_long_write(int addr, long num) {
+  byte raw[4];
+  (long&)raw = num;
+  for(byte i = 0; i < 4; i++) EEPROM.write(addr+i, raw[i]);
+}
+
+void setSclaeTare (float weight) {
+  scale.set_offset(CoefficientScale*weight);
+  EEPROM_long_write(scalOffsetEEpromCell, scale.get_offset()); 
+}
+
 byte getBatteryLevel() {
   byte batLevelPercent = analogRead(BattaryPin)/(MaxBatteryVoltage/5*1024)*100;
   if (batLevelPercent >= 75) return 4;
@@ -154,7 +173,6 @@ void readFromArchive(byte adress1) {
 //  hour=EEPROM.read(adr2+4);
 //  minute=EEPROM.read(adr2+5);
 }
-
 
 //декодирует аналоговый сигнал от клавиатуры в номер нажатой кнопки
 byte key() {                       
@@ -277,8 +295,10 @@ void KeyPad () {
       break;
     case LEFT:
       //сброс до тары
-      Serial.println("scale.tare()");
-      scale.tare();
+      if (flagArchive) return;
+      
+      Serial.println("setSclaeTare(scaleValue);");
+      setSclaeTare(scaleValue);
       break;
     case RIGHT:
       //вход в архив
@@ -345,7 +365,7 @@ void setup() {
   // HX711.PD_SCK - pin #A0
   scale.begin(A1, A0);
   scale.set_scale(CoefficientScale);     // this value is obtained by calibrating the scale with known weights; see the README for details
-  scale.tare();               // reset the scale to 0
+  scale.set_offset(EEPROM_long_read(scalOffsetEEpromCell)); //установим весы относительно последнего сброса тары
   
   lcd.init(); // initialize the LCD
   lcd.createChar(0, charge0);
