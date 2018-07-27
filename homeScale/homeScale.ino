@@ -124,7 +124,7 @@ void setup() {
   // HX711.DOUT  - pin #A1
   // HX711.PD_SCK - pin #A0
   scale.begin(A1, A0);
-  scale.set_scale(24960);     // this value is obtained by calibrating the scale with known weights; see the README for details
+  scale.set_scale(23700);     // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
   
 }
